@@ -7,9 +7,14 @@
     
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
     
     <style>
+        /* --- ดีไซน์คงเดิมทุกประการ ไม่มีการแก้ไข --- */
         :root {
             --primary-blue: #1a4b84;
             --secondary-blue: #eef2f7;
@@ -19,7 +24,7 @@
             --success-green: #28a745;
             --gray-text: #6c757d;
             --danger-red: #dc3545;
-            --hover-blue: #e3f2fd; /* สีฟ้าอ่อนสำหรับ Hover */
+            --hover-blue: #e3f2fd; 
         }
 
         body {
@@ -62,7 +67,6 @@
             color: var(--primary-blue);
         }
 
-        /* --- ฟังก์ชันเมนู 3 ขีด (เพิ่มเติมตามสั่ง) --- */
         .menu-toggle {
             display: none;
             flex-direction: column;
@@ -122,13 +126,10 @@
             gap: 20px;
         }
 
-        /* --- ปรับแต่ง Responsive สำหรับเมนูขวา (เพิ่มเติมตามสั่ง) --- */
         @media (max-width: 768px) {
             .logo-text { font-size: 1.1rem; }
             .logo-area { gap: 15px; }
-            
             .menu-toggle { display: flex; }
-
             nav ul {
                 position: fixed;
                 right: -100%;
@@ -143,28 +144,23 @@
                 transition: 0.4s ease;
                 z-index: 1050;
             }
-
             nav ul.active { right: 0; }
             nav ul li { width: 100%; }
-
             nav a {
                 font-size: 1.1rem;
                 display: block;
                 padding: 15px 25px;
                 border-bottom: none;
             }
-
             nav a:hover {
-                background-color: var(--hover-blue); /* สีฟ้าอ่อนตามสั่ง */
+                background-color: var(--hover-blue);
                 color: var(--accent-blue);
                 border-bottom: none;
             }
-            
             nav a.active {
                 background-color: var(--secondary-blue);
                 border-bottom: none;
             }
-
             .scanner-container { grid-template-columns: 1fr; }
         }
 
@@ -221,11 +217,10 @@
             padding-bottom: 10px;
             display: flex;
             justify-content: space-between;
-            align-items: center; /* จัดให้อยู่กึ่งกลางแนวตั้ง */
+            align-items: center;
             color: var(--primary-blue);
         }
 
-        /* เพิ่มส่วนที่ต้องการ: กรอบ Examination ID */
         #display-id {
             background-color: var(--primary-blue);
             color: white;
@@ -254,7 +249,6 @@
             margin-top: 20px;
         }
 
-        /* --- แก้ไขเฉพาะจุด: เปลี่ยนจาก overflow: hidden เป็น auto เพื่อให้เลื่อนซ้ายขวาได้ --- */
         .table-container, .note-container {
             background: var(--white);
             padding: 20px;
@@ -277,7 +271,6 @@
             vertical-align: top;
         }
 
-        /* --- คืนค่าฟังก์ชัน Resize/Overflow หัว Coloum (ห้ามปรับเปลี่ยน) --- */
         th {
             background-color: var(--primary-blue);
             color: white;
@@ -503,6 +496,21 @@
 </footer>
 
 <script>
+    // --- Step 2: ตั้งค่า Firebase Config (นำมาจากหน้า Console ของคุณ) ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyDYTWS2kNcROnOrihVFvHahTOps0lnzTdc",
+        authDomain: "ice-th-check-attendance.firebaseapp.com",
+        databaseURL: "https://ice-th-check-attendance-default-rtdb.firebaseio.com",
+        projectId: "ice-th-check-attendance",
+        storageBucket: "ice-th-check-attendance.firebasestorage.app",
+        messagingSenderId: "283709304033",
+        appId: "1:283709304033:web:baf71fb34ede6c1c1d9ba0"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     let participantData = [];
     let clearTimer = null; 
     let lastId = null;     
@@ -512,26 +520,38 @@
         navList.classList.toggle('active');
     }
 
-    function saveToLocal() {
-        localStorage.setItem('gjmat_data_2026', JSON.stringify(participantData));
+    // Step 3: ปรับปรุงฟังก์ชันบันทึกข้อมูลไป Firebase
+    function saveToFirebase() {
+        db.ref('gjmat_data_2026').set(participantData);
     }
 
-    function loadFromLocal() {
-        const savedData = localStorage.getItem('gjmat_data_2026');
-        if (savedData) {
-            participantData = JSON.parse(savedData);
-            document.getElementById('download-btn').style.display = 'block';
-            updateRealtimeTable();
-            startScanner();
-        }
+    // Step 4: ดึงข้อมูลจาก Firebase แบบ Real-time
+    function initFirebaseListener() {
+        db.ref('gjmat_data_2026').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                participantData = data;
+                document.getElementById('download-btn').style.display = 'block';
+                updateRealtimeTable();
+                // เริ่ม Scanner เฉพาะครั้งแรกถ้ายังไม่ได้เปิด
+                startScanner();
+            }
+        });
+
+        db.ref('gjmat_note_2026').on('value', (snapshot) => {
+            const note = snapshot.val();
+            if (note !== null) {
+                document.getElementById('note-input').value = note;
+            }
+        });
     }
 
     function systemReset() {
-        const confirmReset = confirm("คำเตือน: ข้อมูลรายชื่อและการเช็คชื่อรวมถึงโน้ตทั้งหมดจะถูกลบถาวร ต้องการดำเนินการต่อหรือไม่?");
+        const confirmReset = confirm("คำเตือน: ข้อมูลในฐานข้อมูล Firebase ทั้งหมดจะถูกลบถาวร ต้องการดำเนินการต่อหรือไม่?");
         if (confirmReset) {
-            localStorage.removeItem('gjmat_data_2026');
-            localStorage.removeItem('gjmat_note_2026');
-            location.reload();
+            db.ref().remove().then(() => {
+                location.reload();
+            });
         }
     }
 
@@ -546,19 +566,14 @@
         document.getElementById('nav-list').classList.remove('active');
 
         if (pageId === 'realtime') { updateRealtimeTable(); }
-        else if (pageId === 'note') { loadNote(); }
     }
 
     function saveNote() {
         const content = document.getElementById('note-input').value;
-        localStorage.setItem('gjmat_note_2026', content);
         document.getElementById('note-status').innerText = 'กำลังบันทึก...';
-        setTimeout(() => { document.getElementById('note-status').innerText = 'บันทึกข้อมูลแล้ว'; }, 500);
-    }
-
-    function loadNote() {
-        const savedContent = localStorage.getItem('gjmat_note_2026');
-        if (savedContent !== null) { document.getElementById('note-input').value = savedContent; }
+        db.ref('gjmat_note_2026').set(content).then(() => {
+            document.getElementById('note-status').innerText = 'บันทึกข้อมูลแล้ว';
+        });
     }
 
     document.getElementById('excel-upload').addEventListener('change', function(e) {
@@ -570,23 +585,25 @@
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
             participantData = XLSX.utils.sheet_to_json(sheet);
-            saveToLocal(); 
-            alert('โหลดข้อมูลเรียบร้อยแล้วจำนวน ' + participantData.length + ' รายชื่อ');
+            
+            saveToFirebase(); // บันทึกลง Firebase แทน LocalStorage
+            alert('โหลดข้อมูลเข้า Firebase เรียบร้อยแล้วจำนวน ' + participantData.length + ' รายชื่อ');
             document.getElementById('download-btn').style.display = 'block';
             updateRealtimeTable();
-            startScanner();
         };
         reader.readAsBinaryString(file);
     });
 
+    let html5QrCode = null;
     function startScanner() {
-        const html5QrCode = new Html5Qrcode("reader");
+        if (html5QrCode) return; // ถ้าเปิดอยู่แล้วไม่ต้องเปิดซ้ำ
+        html5QrCode = new Html5Qrcode("reader");
         const qrCodeSuccessCallback = (decodedText) => {
             if (decodedText !== lastId) { findUser(decodedText); }
         };
         const config = { fps: 15, qrbox: { width: 250, height: 250 } };
         html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback).catch(err => {
-            console.warn("Scanner already active.");
+            console.warn("Scanner already active or permission denied.");
         });
     }
 
@@ -608,13 +625,23 @@
     }
 
     function findUser(id) {
-        const user = participantData.find(u => String(u["REF"]).trim() === id.trim());
+        const index = participantData.findIndex(u => String(u["REF"]).trim() === id.trim());
         
-        if (user) {
+        if (index !== -1) {
+            const user = participantData[index];
             lastId = id; 
-            user["Check Attendance"] = "Present";
-            if(!user["Registration On"]) { user["Registration On"] = formatDateTime(); }
-            saveToLocal(); 
+            
+            // อัปเดตข้อมูลใน Array
+            participantData[index]["Check Attendance"] = "Present";
+            if(!participantData[index]["Registration On"]) { 
+                participantData[index]["Registration On"] = formatDateTime(); 
+            }
+            
+            // Step 5: บันทึกเฉพาะตำแหน่งที่เปลี่ยนลง Firebase เพื่อประหยัด Bandwidth
+            db.ref(`gjmat_data_2026/${index}`).update({
+                "Check Attendance": "Present",
+                "Registration On": participantData[index]["Registration On"]
+            });
             
             document.getElementById('placeholder-text').style.display = 'none';
             document.getElementById('card').style.display = 'block';
@@ -699,8 +726,8 @@
     }
 
     window.onload = function() {
-        loadFromLocal();
-        loadNote();
+        // เริ่มต้นฟังข้อมูลจาก Firebase ทันทีที่โหลดหน้าเว็บ
+        initFirebaseListener();
     };
 </script>
 
