@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICE-TH Attendance System</title>
+    
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-blue: #1a4b84;
+            --secondary-blue: #eef2f7;
+            --accent-blue: #007bff;
+            --text-dark: #333;
+            --white: #ffffff;
+            --success-green: #28a745;
+            --gray-text: #6c757d;
+            --danger-red: #dc3545;
+            --hover-blue: #e3f2fd; /* สีฟ้าอ่อนสำหรับ Hover */
+        }
+
+        body {
+            font-family: 'Sarabun', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f9;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--white);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 0.5rem 5%; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 35px;
+        }
+
+        .logo-img {
+            height: 55px;
+            width: auto;
+            display: block;
+        }
+
+        .logo-text {
+            font-weight: bold;
+            font-size: 1.5rem;
+            color: var(--primary-blue);
+        }
+
+        /* --- ฟังก์ชันเมนู 3 ขีด (เพิ่มเติมตามสั่ง) --- */
+        .menu-toggle {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            z-index: 1100;
+        }
+
+        .menu-toggle span {
+            width: 30px;
+            height: 3px;
+            background-color: var(--primary-blue);
+            transition: 0.3s;
+        }
+
+        nav ul {
+            list-style: none;
+            display: flex;
+            gap: 20px;
+            margin: 0;
+            padding: 0;
+        }
+
+        nav a {
+            text-decoration: none;
+            color: var(--text-dark);
+            font-weight: 500;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        nav a:hover, nav a.active { color: var(--accent-blue); border-bottom: 2px solid var(--accent-blue); }
+
+        main {
+            flex: 1;
+            padding: 2rem 2%;
+            margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #home-page { max-width: 1103px; }
+        #realtime-page { max-width: 98%; }
+        #note-page { max-width: 900px; }
+
+        .setup-section {
+            background: var(--white);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+        }
+
+        .scanner-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* --- ปรับแต่ง Responsive สำหรับเมนูขวา (เพิ่มเติมตามสั่ง) --- */
+        @media (max-width: 768px) {
+            .logo-text { font-size: 1.1rem; }
+            .logo-area { gap: 15px; }
+            
+            .menu-toggle { display: flex; }
+
+            nav ul {
+                position: fixed;
+                right: -100%;
+                top: 0;
+                width: 280px;
+                height: 100vh;
+                background: var(--white);
+                flex-direction: column;
+                gap: 0;
+                padding: 80px 0;
+                box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+                transition: 0.4s ease;
+                z-index: 1050;
+            }
+
+            nav ul.active { right: 0; }
+            nav ul li { width: 100%; }
+
+            nav a {
+                font-size: 1.1rem;
+                display: block;
+                padding: 15px 25px;
+                border-bottom: none;
+            }
+
+            nav a:hover {
+                background-color: var(--hover-blue); /* สีฟ้าอ่อนตามสั่ง */
+                color: var(--accent-blue);
+                border-bottom: none;
+            }
+            
+            nav a.active {
+                background-color: var(--secondary-blue);
+                border-bottom: none;
+            }
+
+            .scanner-container { grid-template-columns: 1fr; }
+        }
+
+        #reader {
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid var(--primary-blue) !important;
+        }
+
+        .scanner-header, .realtime-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .search-group { display: flex; gap: 5px; }
+
+        .search-input {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            outline: none;
+            width: 200px;
+            font-family: 'Sarabun', sans-serif;
+        }
+
+        .btn-search {
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .result-card {
+            background: var(--white);
+            border: 3px solid var(--primary-blue);
+            border-radius: 15px;
+            padding: 25px;
+            position: relative;
+            display: none; 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .card-header {
+            border-bottom: 2px solid var(--secondary-blue);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center; /* จัดให้อยู่กึ่งกลางแนวตั้ง */
+            color: var(--primary-blue);
+        }
+
+        /* เพิ่มส่วนที่ต้องการ: กรอบ Examination ID */
+        #display-id {
+            background-color: var(--primary-blue);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 15px;
+            font-size: 1.1rem;
+        }
+
+        .label { font-weight: bold; color: #666; }
+        .value { font-weight: 700; color: var(--text-dark); }
+
+        .status-badge {
+            background: var(--success-green);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 20px;
+        }
+
+        /* --- แก้ไขเฉพาะจุด: เปลี่ยนจาก overflow: hidden เป็น auto เพื่อให้เลื่อนซ้ายขวาได้ --- */
+        .table-container, .note-container {
+            background: var(--white);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            table-layout: fixed;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px 10px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: top;
+        }
+
+        /* --- คืนค่าฟังก์ชัน Resize/Overflow หัว Coloum (ห้ามปรับเปลี่ยน) --- */
+        th {
+            background-color: var(--primary-blue);
+            color: white;
+            white-space: nowrap;
+            overflow: auto;
+            resize: horizontal;
+        }
+
+        td {
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        th:nth-child(1) { width: 50px; }
+        th:nth-child(2) { width: 130px; }
+        th:nth-child(3) { width: 180px; }
+        th:nth-child(4) { width: auto; }
+        th:nth-child(5) { width: 80px; }
+        th:nth-child(6) { width: 160px; }
+        th:nth-child(7) { width: 100px; }
+
+        tr:hover { background-color: #f9f9f9; }
+
+        .status-present { color: var(--success-green); font-weight: bold; }
+        .status-none { color: var(--gray-text); font-style: italic; }
+
+        .summary-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .summary-item { text-align: center; }
+        .summary-label { font-size: 0.9rem; color: var(--gray-text); margin-bottom: 5px; }
+        .summary-value { font-size: 1.5rem; font-weight: bold; color: var(--primary-blue); }
+        .summary-value.success { color: var(--success-green); }
+        .summary-value.danger { color: var(--danger-red); }
+
+        .note-textarea {
+            width: 100%;
+            height: 400px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-family: 'Sarabun', sans-serif;
+            font-size: 1rem;
+            resize: vertical;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .note-textarea:focus { border-color: var(--accent-blue); box-shadow: 0 0 5px rgba(0,123,255,0.2); }
+        .save-status { font-size: 0.85rem; color: var(--gray-text); margin-top: 10px; display: block; }
+
+        footer {
+            background: var(--primary-blue);
+            color: white;
+            text-align: center;
+            padding: 0rem;
+            margin-top: auto;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+            background: var(--secondary-blue);
+            border-radius: 5px;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        .btn-download {
+            background: var(--success-green);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            display: none;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .btn-download:hover { background: #218838; }
+        .btn-clear { display: none; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo-area">
+        <img src="ICE-Logo.png" alt="ICE Logo" class="logo-img">
+        <div class="logo-text">GJMAT 2026 National Round - Check Attendance</div>
+    </div>
+    
+    <div class="menu-toggle" id="mobile-menu" onclick="toggleMenu()">
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+
+    <nav>
+        <ul id="nav-list">
+            <li><a id="nav-home" onclick="showPage('home')" class="active">หน้าแรก</a></li>
+            <li><a id="nav-realtime" onclick="showPage('realtime')">เช็ครายชื่อเเบบเรียลไทม์</a></li>
+            <li><a id="nav-note" onclick="showPage('note')">โน้ต</a></li> 
+            <li><a href="#" onclick="systemReset()">รีเซ็ตระบบ</a></li>
+        </ul>
+    </nav>
+</header>
+
+<main id="home-page">
+    <div class="setup-section">
+        <h3>1. นำเข้าข้อมูลผู้เข้าสอบ (Excel)</h3>
+        <p>อัปโหลดไฟล์ที่มีคอลัมน์: Examination ID, Seat No., Building, Floor, Room, Name Surname, Grade, School Name, REF</p>
+        <input type="file" id="excel-upload" accept=".xlsx, .xls">
+        <button id="download-btn" class="btn-download" onclick="exportToExcel()">ดาวน์โหลดไฟล์สรุปการเช็คชื่อ (Excel)</button>
+    </div>
+
+    <div class="scanner-container">
+        <div>
+            <div class="scanner-header">
+                <h3 id="status-text" style="margin: 0;">2. สแกน QR Code</h3>
+                <div class="search-group">
+                    <input type="text" id="id-input" class="search-input" placeholder="ค้นหาด้วย REF...">
+                    <button class="btn-search" onclick="manualSearch()">ค้นหา</button>
+                </div>
+            </div>
+            <div id="reader"></div>
+        </div>
+
+        <div id="result-area">
+            <h3>ข้อมูลผู้เข้าสอบ</h3>
+            <div id="card" class="result-card">
+                <div class="card-header">
+                    <span style="font-weight: bold;">EXAMINATION ID</span>
+                    <span id="display-id">-</span>
+                </div>
+                
+                <div class="info-grid">
+                    <div class="label">ชื่อ-นามสกุล:</div>
+                    <div class="value" id="display-name">-</div>
+                    <div class="label">โรงเรียน:</div>
+                    <div class="value" id="display-school">-</div>
+                    <div class="label">ระดับชั้น:</div>
+                    <div class="value" id="display-grade">-</div>
+                    <div class="label">อาคาร/ห้อง:</div>
+                    <div class="value"><span id="display-building">-</span> / <span id="display-room">-</span> (ชั้น <span id="display-floor">-</span>)</div>
+                    <div class="label">เลขที่นั่งสอบ:</div>
+                    <div class="value" id="display-seat">-</div>
+                </div>
+
+                <div class="status-badge">✓ เช็คชื่อสำเร็จ</div>
+                <br>
+                <button class="btn-clear" onclick="clearResult()">สแกนคนต่อไป</button>
+            </div>
+            <div id="placeholder-text" style="text-align: center; padding: 40px; color: #999; border: 2px dashed #ccc; border-radius: 10px;">
+                รอการสแกน...
+            </div>
+        </div>
+    </div>
+</main>
+
+<main id="realtime-page" style="display: none;">
+    <div class="table-container">
+        <div class="realtime-header">
+            <h3 style="margin:0;">3. สถานะรายชื่อผู้ลงทะเบียนเเบบเรียลไทม์</h3>
+            <div class="search-group">
+                <input type="text" id="realtime-search" class="search-input" placeholder="ค้นหาข้อมูลทุกคอลัมน์..." onkeyup="updateRealtimeTable()">
+            </div>
+        </div>
+
+        <table id="realtime-table">
+            <thead>
+                <tr>
+                    <th>ลำดับ</th>
+                    <th>Examination ID</th>
+                    <th>Name Surname</th>
+                    <th>School Name</th>
+                    <th>Grade</th>
+                    <th>Registration On</th> 
+                    <th>สถานะ</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+
+        <div class="summary-container" id="realtime-summary">
+            <div class="summary-item">
+                <div class="summary-label">จำนวนผู้สมัครทั้งหมด</div>
+                <div class="summary-value" id="stat-total">0</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">ลงทะเบียนสำเร็จทั้งสิ้น</div>
+                <div class="summary-value success" id="stat-present">0</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">ยังไม่ได้ลงทะเบียนทั้งสิ้น</div>
+                <div class="summary-value danger" id="stat-absent">0</div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<main id="note-page" style="display: none;">
+    <div class="note-container">
+        <h3 style="margin-top:0;">สมุดโน้ตบันทึกข้อมูล</h3>
+        <p style="color: #666;">พิมพ์บันทึกข้อมูลของคุณที่นี่ ระบบจะบันทึกข้อมูลให้อัตโนมัติ</p>
+        <textarea id="note-input" class="note-textarea" placeholder="เขียนข้อมูลที่คุณต้องการจดจำที่นี่..." oninput="saveNote()"></textarea>
+        <span class="save-status" id="note-status">บันทึกข้อมูลแล้ว</span>
+    </div>
+</main>
+
+<footer>
+    <p>Copyright © 2026 ICE-TH | International Champions In Education. All Rights Reserved.&nbsp;&nbsp;Version: V1.1.16</p>
+</footer>
+
+<script>
+    let participantData = [];
+    let clearTimer = null; 
+    let lastId = null;     
+
+    function toggleMenu() {
+        const navList = document.getElementById('nav-list');
+        navList.classList.toggle('active');
+    }
+
+    function saveToLocal() {
+        localStorage.setItem('gjmat_data_2026', JSON.stringify(participantData));
+    }
+
+    function loadFromLocal() {
+        const savedData = localStorage.getItem('gjmat_data_2026');
+        if (savedData) {
+            participantData = JSON.parse(savedData);
+            document.getElementById('download-btn').style.display = 'block';
+            updateRealtimeTable();
+            startScanner();
+        }
+    }
+
+    function systemReset() {
+        const confirmReset = confirm("คำเตือน: ข้อมูลรายชื่อและการเช็คชื่อรวมถึงโน้ตทั้งหมดจะถูกลบถาวร ต้องการดำเนินการต่อหรือไม่?");
+        if (confirmReset) {
+            localStorage.removeItem('gjmat_data_2026');
+            localStorage.removeItem('gjmat_note_2026');
+            location.reload();
+        }
+    }
+
+    function showPage(pageId) {
+        const pages = ['home-page', 'realtime-page', 'note-page'];
+        const navs = ['nav-home', 'nav-realtime', 'nav-note'];
+        pages.forEach(p => document.getElementById(p).style.display = 'none');
+        navs.forEach(n => document.getElementById(n).classList.remove('active'));
+        document.getElementById(pageId + '-page').style.display = 'block';
+        document.getElementById('nav-' + pageId).classList.add('active');
+        
+        document.getElementById('nav-list').classList.remove('active');
+
+        if (pageId === 'realtime') { updateRealtimeTable(); }
+        else if (pageId === 'note') { loadNote(); }
+    }
+
+    function saveNote() {
+        const content = document.getElementById('note-input').value;
+        localStorage.setItem('gjmat_note_2026', content);
+        document.getElementById('note-status').innerText = 'กำลังบันทึก...';
+        setTimeout(() => { document.getElementById('note-status').innerText = 'บันทึกข้อมูลแล้ว'; }, 500);
+    }
+
+    function loadNote() {
+        const savedContent = localStorage.getItem('gjmat_note_2026');
+        if (savedContent !== null) { document.getElementById('note-input').value = savedContent; }
+    }
+
+    document.getElementById('excel-upload').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const data = evt.target.result;
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            participantData = XLSX.utils.sheet_to_json(sheet);
+            saveToLocal(); 
+            alert('โหลดข้อมูลเรียบร้อยแล้วจำนวน ' + participantData.length + ' รายชื่อ');
+            document.getElementById('download-btn').style.display = 'block';
+            updateRealtimeTable();
+            startScanner();
+        };
+        reader.readAsBinaryString(file);
+    });
+
+    function startScanner() {
+        const html5QrCode = new Html5Qrcode("reader");
+        const qrCodeSuccessCallback = (decodedText) => {
+            if (decodedText !== lastId) { findUser(decodedText); }
+        };
+        const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+        html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback).catch(err => {
+            console.warn("Scanner already active.");
+        });
+    }
+
+    function manualSearch() {
+        const id = document.getElementById('id-input').value.trim();
+        if (id) { findUser(id); document.getElementById('id-input').value = ""; } 
+        else { alert("กรุณาใส่รหัส REF"); }
+    }
+
+    function formatDateTime() {
+        const now = new Date();
+        const d = String(now.getDate()).padStart(2, '0');
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const y = now.getFullYear();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        return `${d}/${m}/${y} ${hh}:${mm}:${ss} (UTC +07:00)`;
+    }
+
+    function findUser(id) {
+        const user = participantData.find(u => String(u["REF"]).trim() === id.trim());
+        
+        if (user) {
+            lastId = id; 
+            user["Check Attendance"] = "Present";
+            if(!user["Registration On"]) { user["Registration On"] = formatDateTime(); }
+            saveToLocal(); 
+            
+            document.getElementById('placeholder-text').style.display = 'none';
+            document.getElementById('card').style.display = 'block';
+            
+            document.getElementById('display-id').innerText = user["Examination ID"] || 'N/A';
+            document.getElementById('display-name').innerText = user["Name Surname"] || '-';
+            document.getElementById('display-school').innerText = user["School Name"] || '-';
+            document.getElementById('display-grade').innerText = user["Grade"] || '-';
+            document.getElementById('display-building').innerText = user["Building"] || '-';
+            document.getElementById('display-room').innerText = user["Room"] || '-';
+            document.getElementById('display-floor').innerText = user["Floor"] || '-';
+            document.getElementById('display-seat').innerText = user["Seat No."] || '-';
+            
+            if (clearTimer) clearTimeout(clearTimer); 
+            clearTimer = setTimeout(() => { clearResult(); lastId = null; }, 12000); 
+        } else { alert("ไม่พบข้อมูลในระบบ (REF: " + id + ")"); }
+    }
+
+    function updateRealtimeTable() {
+        const tbody = document.getElementById('table-body');
+        const searchTerm = document.getElementById('realtime-search').value.toLowerCase();
+        tbody.innerHTML = ''; 
+
+        if (participantData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">ยังไม่ได้อัปโหลดข้อมูลรายชื่อ</td></tr>';
+            document.getElementById('stat-total').innerText = '0';
+            document.getElementById('stat-present').innerText = '0';
+            document.getElementById('stat-absent').innerText = '0';
+            return;
+        }
+
+        const total = participantData.length;
+        const presentCount = participantData.filter(u => u["Check Attendance"] === "Present").length;
+        const absentCount = total - presentCount;
+        document.getElementById('stat-total').innerText = total;
+        document.getElementById('stat-present').innerText = presentCount;
+        document.getElementById('stat-absent').innerText = absentCount;
+
+        const filteredData = participantData.filter(user => {
+            return Object.values(user).some(val => String(val).toLowerCase().includes(searchTerm));
+        });
+
+        if (filteredData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">ไม่พบข้อมูลที่ค้นหา</td></tr>';
+            return;
+        }
+
+        filteredData.forEach((user, index) => {
+            const tr = document.createElement('tr');
+            const statusClass = user["Check Attendance"] === "Present" ? "status-present" : "status-none";
+            const statusText = user["Check Attendance"] === "Present" ? "Present" : "No record";
+            
+            tr.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${user["Examination ID"] || '-'}</td>
+                <td>${user["Name Surname"] || '-'}</td>
+                <td>${user["School Name"] || '-'}</td>
+                <td>${user["Grade"] || '-'}</td>
+                <td>${user["Registration On"] || "-"}</td>
+                <td class="${statusClass}">${statusText}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function exportToExcel() {
+        if (participantData.length === 0) return alert("ไม่มีข้อมูลสำหรับการดาวน์โหลด");
+        const finalData = participantData.map(item => ({
+            ...item,
+            "Check Attendance": item["Check Attendance"] === "Present" ? "Present" : "Absent",
+            "Registration On": item["Registration On"] || "-"
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(finalData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance_Report");
+        XLSX.writeFile(workbook, "Attendance_Report_2026.xlsx");
+    }
+
+    function clearResult() {
+        document.getElementById('card').style.display = 'none';
+        document.getElementById('placeholder-text').style.display = 'block';
+    }
+
+    window.onload = function() {
+        loadFromLocal();
+        loadNote();
+    };
+</script>
+
+</body>
+</html>
